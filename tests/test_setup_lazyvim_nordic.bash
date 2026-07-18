@@ -290,5 +290,25 @@ else
   fail "--replace with orphaned Neovim directories failed: $(cat "$output9")"
 fi
 
+# --- orphaned Neovim files require explicit replacement ----------------
+home9="$tmp/home9"
+mkdir -p "$home9/.local/share/nvim" "$home9/.local/state/nvim" "$home9/.cache/nvim"
+printf '%s\n' 'orphaned data' > "$home9/.local/share/nvim/data-marker"
+printf '%s\n' 'orphaned state' > "$home9/.local/state/nvim/state-marker"
+printf '%s\n' 'orphaned cache' > "$home9/.cache/nvim/cache-marker"
+output10="$tmp/output10"
+if HOME="$home9" PATH="$fake_bin:/usr/bin:/bin" \
+  sh "$script" >"$output10" 2>&1; then
+  fail "orphaned Neovim directories should require --replace"
+elif grep -q -- '--replace' "$output10" \
+  && [ "$(cat "$home9/.local/share/nvim/data-marker")" = 'orphaned data' ] \
+  && [ "$(cat "$home9/.local/state/nvim/state-marker")" = 'orphaned state' ] \
+  && [ "$(cat "$home9/.cache/nvim/cache-marker")" = 'orphaned cache' ] \
+  && [ ! -e "$home9/.config/nvim" ]; then
+  ok "orphaned Neovim directories are refused and preserved without --replace"
+else
+  fail "orphaned Neovim directories were modified without --replace"
+fi
+
 printf '\n%d failure(s)\n' "$fails"
 [ "$fails" -eq 0 ]

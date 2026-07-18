@@ -183,10 +183,14 @@ if [ "$replace" -eq 0 ] \
   && grep -q 'colorscheme = "nordic"' "$config_dir/lua/plugins/nordic.lua"; then
   :
 else
-  if { [ -e "$config_dir" ] || [ -L "$config_dir" ]; } && [ "$replace" -eq 0 ]; then
-    printf 'error: Neovim config already exists at %s\n' "$config_dir" >&2
-    printf '%s\n' 'Re-run with --replace to back it up and install a fresh config.' >&2
-    exit 1
+  if [ "$replace" -eq 0 ]; then
+    for path in "$config_dir" "$data_dir" "$state_dir" "$cache_dir"; do
+      if [ -e "$path" ] || [ -L "$path" ]; then
+        printf 'error: Neovim files already exist at %s\n' "$path" >&2
+        printf '%s\n' 'Re-run with --replace to back them up and install a fresh config.' >&2
+        exit 1
+      fi
+    done
   fi
 
   if [ "$replace" -eq 1 ]; then
