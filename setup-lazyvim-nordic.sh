@@ -125,8 +125,8 @@ configure_iterm() (
 )
 
 sync_and_verify_nvim() {
-  nvim --headless "+Lazy! sync" +qa
-  nvim --headless \
+  NVIM_APPNAME=nvim nvim --headless "+Lazy! sync" +qa
+  NVIM_APPNAME=nvim nvim --headless \
     "+lua assert(vim.g.colors_name == 'nordic', 'Nordic colorscheme failed to load')" \
     +qa
 }

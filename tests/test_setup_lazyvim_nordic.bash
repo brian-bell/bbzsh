@@ -43,6 +43,12 @@ if [ "${1-}" = "--version" ]; then
   printf 'NVIM v%s\n' "${FAKE_NVIM_VERSION:-0.11.2}"
   exit 0
 fi
+if [ -n "${FAKE_EXPECT_NVIM_APPNAME:-}" ] \
+  && [ "${NVIM_APPNAME-}" != "$FAKE_EXPECT_NVIM_APPNAME" ]; then
+  printf 'expected NVIM_APPNAME=%s, found %s\n' \
+    "$FAKE_EXPECT_NVIM_APPNAME" "${NVIM_APPNAME-<unset>}" >&2
+  exit 1
+fi
 if [ -n "${FAKE_CALL_LOG:-}" ]; then
   printf 'nvim %s\n' "$*" >> "$FAKE_CALL_LOG"
 fi
@@ -308,6 +314,17 @@ elif grep -q -- '--replace' "$output10" \
   ok "orphaned Neovim directories are refused and preserved without --replace"
 else
   fail "orphaned Neovim directories were modified without --replace"
+fi
+
+# --- inherited NVIM_APPNAME does not redirect headless setup -----------
+home10="$tmp/home10"
+mkdir -p "$home10"
+output11="$tmp/output11"
+if HOME="$home10" NVIM_APPNAME=alternate FAKE_EXPECT_NVIM_APPNAME=nvim \
+  PATH="$fake_bin:/usr/bin:/bin" sh "$script" >"$output11" 2>&1; then
+  ok "headless setup targets the installed nvim profile despite NVIM_APPNAME"
+else
+  fail "headless setup inherited NVIM_APPNAME: $(cat "$output11")"
 fi
 
 printf '\n%d failure(s)\n' "$fails"
