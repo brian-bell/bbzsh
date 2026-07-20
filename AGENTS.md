@@ -19,9 +19,12 @@
 - `install-gitconfig.sh` installs `.gitconfig` as `~/.gitconfig`, prompting for
   identity. It is POSIX sh (run, not sourced), unlike the `.zsh` / `.bash`
   modules.
-- `setup-lazyvim-nordic.sh` is a POSIX sh standalone installer for LazyVim and
-  Nordic. Its optional `--with-iterm` path is macOS-only and must remain
-  explicitly opt-in.
+- `setup-lazyvim-nordic.sh` is a POSIX sh standalone installer for LazyVim.
+  Nordic is optional and off by default; `--with-nordic` opts in. Its optional
+  `--with-iterm` path is macOS-only and must remain explicitly opt-in. Its
+  `--uninstall` path backs up existing Neovim config, data, state, and cache to
+  the installer backups dir, then removes them; it cannot be combined with the
+  install options.
 
 ## Checks
 

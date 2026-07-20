@@ -115,7 +115,7 @@ mkdir -p "$home1"
 output1="$tmp/output1"
 call_log1="$tmp/calls1"
 if HOME="$home1" FAKE_CALL_LOG="$call_log1" PATH="$fake_bin:/usr/bin:/bin" \
-  sh "$script" >"$output1" 2>&1; then
+  sh "$script" --with-nordic >"$output1" 2>&1; then
   config1="$home1/.config/nvim"
   if grep -q 'AlexvZyl/nordic.nvim' "$config1/lua/plugins/nordic.lua" \
     && grep -q 'colorscheme = "nordic"' "$config1/lua/plugins/nordic.lua"; then
@@ -138,12 +138,91 @@ else
   fail "fresh install failed: $(cat "$output1")"
 fi
 
+# --- a plain fresh install installs LazyVim without Nordic ---------------
+home_plain="$tmp/home-plain"
+mkdir -p "$home_plain"
+output_plain="$tmp/output-plain"
+call_log_plain="$tmp/calls-plain"
+if HOME="$home_plain" FAKE_CALL_LOG="$call_log_plain" PATH="$fake_bin:/usr/bin:/bin" \
+  sh "$script" >"$output_plain" 2>&1; then
+  config_plain="$home_plain/.config/nvim"
+  if [ ! -e "$config_plain/lua/plugins/nordic.lua" ]; then
+    ok "plain install omits the Nordic plugin spec"
+  else
+    fail "plain install created a Nordic plugin spec without --with-nordic"
+  fi
+  if grep -q 'Lazy! sync' "$call_log_plain" \
+    && ! grep -q "colors_name == 'nordic'" "$call_log_plain"; then
+    ok "plain install syncs plugins without verifying Nordic"
+  else
+    fail "plain install ran the Nordic verification unexpectedly"
+  fi
+else
+  fail "plain install failed: $(cat "$output_plain")"
+fi
+
+# --- --with-nordic enables Nordic on an existing plain install ----------
+home_add="$tmp/home-add-nordic"
+mkdir -p "$home_add"
+if HOME="$home_add" PATH="$fake_bin:/usr/bin:/bin" \
+  sh "$script" >"$tmp/output-add1" 2>&1; then
+  printf '%s\n' '-- user customization' \
+    > "$home_add/.config/nvim/lua/config/options.lua"
+  call_log_add="$tmp/calls-add"
+  if HOME="$home_add" FAKE_CALL_LOG="$call_log_add" PATH="$fake_bin:/usr/bin:/bin" \
+    sh "$script" --with-nordic >"$tmp/output-add2" 2>&1; then
+    config_add="$home_add/.config/nvim"
+    if grep -q 'AlexvZyl/nordic.nvim' "$config_add/lua/plugins/nordic.lua" \
+      && grep -q 'user customization' "$config_add/lua/config/options.lua"; then
+      ok "--with-nordic adds Nordic to an existing plain install without --replace"
+    else
+      fail "--with-nordic did not enable Nordic while preserving the existing config"
+    fi
+    if [ ! -e "$home_add/.local/state/lazyvim-nordic-installer/backups" ] \
+      && grep -q "colors_name == 'nordic'" "$call_log_add"; then
+      ok "--with-nordic augments in place without backing up the config"
+    else
+      fail "--with-nordic backed up or failed to verify when augmenting in place"
+    fi
+  else
+    fail "--with-nordic on an existing plain install failed: $(cat "$tmp/output-add2")"
+  fi
+else
+  fail "plain install for the add-nordic scenario failed: $(cat "$tmp/output-add1")"
+fi
+
+# --- --with-nordic refuses a conflicting user-written nordic.lua --------
+home_custom="$tmp/home-custom-nordic"
+mkdir -p "$home_custom"
+if HOME="$home_custom" PATH="$fake_bin:/usr/bin:/bin" \
+  sh "$script" >"$tmp/output-custom1" 2>&1; then
+  custom_spec="$home_custom/.config/nvim/lua/plugins/nordic.lua"
+  printf '%s\n' '-- hand-tuned nordic' \
+    'return { { "AlexvZyl/nordic.nvim", opts = { bold_keywords = true } } }' \
+    > "$custom_spec"
+  call_log_custom="$tmp/calls-custom"
+  if HOME="$home_custom" FAKE_CALL_LOG="$call_log_custom" \
+    PATH="$fake_bin:/usr/bin:/bin" \
+    sh "$script" --with-nordic >"$tmp/output-custom2" 2>&1; then
+    fail "--with-nordic should refuse a conflicting user-written nordic.lua"
+  elif grep -q 'hand-tuned nordic' "$custom_spec" \
+    && grep -q 'bold_keywords = true' "$custom_spec" \
+    && grep -q -- '--with-nordic' "$tmp/output-custom2" \
+    && [ ! -e "$call_log_custom" ]; then
+    ok "--with-nordic refuses a conflicting nordic.lua before syncing, preserving it"
+  else
+    fail "--with-nordic mishandled a conflicting user-written nordic.lua"
+  fi
+else
+  fail "plain install for the custom-nordic scenario failed: $(cat "$tmp/output-custom1")"
+fi
+
 # --- rerunning an installed setup succeeds without replacing config ------
 printf '%s\n' '-- user customization' > "$home1/.config/nvim/lua/config/options.lua"
 output2="$tmp/output2"
 call_log2="$tmp/calls2"
 if HOME="$home1" FAKE_CALL_LOG="$call_log2" PATH="$fake_bin:/usr/bin:/bin" \
-  sh "$script" >"$output2" 2>&1; then
+  sh "$script" --with-nordic >"$output2" 2>&1; then
   if grep -q 'user customization' "$home1/.config/nvim/lua/config/options.lua"; then
     ok "rerun preserves an existing LazyVim and Nordic setup"
   else
@@ -181,7 +260,7 @@ printf '%s\n' 'old data' > "$home3/.local/share/nvim/data-marker"
 printf '%s\n' 'old state' > "$home3/.local/state/nvim/state-marker"
 printf '%s\n' 'old cache' > "$home3/.cache/nvim/cache-marker"
 output4="$tmp/output4"
-if HOME="$home3" PATH="$fake_bin:/usr/bin:/bin" sh "$script" --replace >"$output4" 2>&1; then
+if HOME="$home3" PATH="$fake_bin:/usr/bin:/bin" sh "$script" --replace --with-nordic >"$output4" 2>&1; then
   backup_root="$home3/.local/state/lazyvim-nordic-installer/backups"
   if backup_contains "$backup_root" 'config/init.lua' 'old config' \
     && backup_contains "$backup_root" 'data/data-marker' 'old data' \
@@ -269,8 +348,10 @@ help_output="$tmp/help-output"
 if HOME="$tmp/help-home" PATH="$fake_bin:/usr/bin:/bin" \
   sh "$script" --help >"$help_output" 2>&1 \
   && grep -q -- '--replace' "$help_output" \
-  && grep -q -- '--with-iterm' "$help_output"; then
-  ok "--help documents replacement and optional iTerm setup"
+  && grep -q -- '--with-iterm' "$help_output" \
+  && grep -q -- '--with-nordic' "$help_output" \
+  && grep -q -- '--uninstall' "$help_output"; then
+  ok "--help documents replacement, Nordic, iTerm, and uninstall"
 else
   fail "--help did not describe the public interface"
 fi
@@ -325,6 +406,64 @@ if HOME="$home10" NVIM_APPNAME=alternate FAKE_EXPECT_NVIM_APPNAME=nvim \
   ok "headless setup targets the installed nvim profile despite NVIM_APPNAME"
 else
   fail "headless setup inherited NVIM_APPNAME: $(cat "$output11")"
+fi
+
+# --- --uninstall backs up and removes all Neovim files ------------------
+home_un="$tmp/home-uninstall"
+mkdir -p "$home_un/.config/nvim" "$home_un/.local/share/nvim" \
+  "$home_un/.local/state/nvim" "$home_un/.cache/nvim"
+printf '%s\n' 'live config' > "$home_un/.config/nvim/init.lua"
+printf '%s\n' 'live data' > "$home_un/.local/share/nvim/data-marker"
+printf '%s\n' 'live state' > "$home_un/.local/state/nvim/state-marker"
+printf '%s\n' 'live cache' > "$home_un/.cache/nvim/cache-marker"
+output_un="$tmp/output-uninstall"
+if HOME="$home_un" PATH="$fake_bin:/usr/bin:/bin" \
+  sh "$script" --uninstall >"$output_un" 2>&1; then
+  backup_root_un="$home_un/.local/state/lazyvim-nordic-installer/backups"
+  if backup_contains "$backup_root_un" 'config/init.lua' 'live config' \
+    && backup_contains "$backup_root_un" 'data/data-marker' 'live data' \
+    && backup_contains "$backup_root_un" 'state/state-marker' 'live state' \
+    && backup_contains "$backup_root_un" 'cache/cache-marker' 'live cache'; then
+    ok "--uninstall backs up existing Neovim config, data, state, and cache"
+  else
+    fail "--uninstall did not preserve all existing Neovim files"
+  fi
+  if [ ! -e "$home_un/.config/nvim" ] && [ ! -e "$home_un/.local/share/nvim" ] \
+    && [ ! -e "$home_un/.local/state/nvim" ] && [ ! -e "$home_un/.cache/nvim" ]; then
+    ok "--uninstall removes the live Neovim directories"
+  else
+    fail "--uninstall left live Neovim directories in place"
+  fi
+else
+  fail "--uninstall failed: $(cat "$output_un")"
+fi
+
+# --- --uninstall with nothing installed is a clean no-op ----------------
+home_un2="$tmp/home-uninstall-empty"
+mkdir -p "$home_un2"
+output_un2="$tmp/output-uninstall-empty"
+if HOME="$home_un2" PATH="$fake_bin:/usr/bin:/bin" \
+  sh "$script" --uninstall >"$output_un2" 2>&1; then
+  if [ ! -e "$home_un2/.config/nvim" ]; then
+    ok "--uninstall succeeds when no Neovim files are present"
+  else
+    fail "--uninstall created files when there was nothing to remove"
+  fi
+else
+  fail "--uninstall with nothing to remove failed: $(cat "$output_un2")"
+fi
+
+# --- --uninstall rejects combination with install options ---------------
+home_un3="$tmp/home-uninstall-combo"
+mkdir -p "$home_un3"
+output_un3="$tmp/output-uninstall-combo"
+if HOME="$home_un3" PATH="$fake_bin:/usr/bin:/bin" \
+  sh "$script" --uninstall --with-nordic >"$output_un3" 2>&1; then
+  fail "--uninstall combined with install options should be rejected"
+elif [ ! -e "$home_un3/.config/nvim" ]; then
+  ok "--uninstall combined with install options is refused"
+else
+  fail "rejected --uninstall combination still touched Neovim files"
 fi
 
 printf '\n%d failure(s)\n' "$fails"
