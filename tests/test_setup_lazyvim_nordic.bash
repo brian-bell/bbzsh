@@ -191,7 +191,7 @@ else
   fail "plain install for the add-nordic scenario failed: $(cat "$tmp/output-add1")"
 fi
 
-# --- --with-nordic does not clobber a user-written nordic.lua -----------
+# --- --with-nordic refuses a conflicting user-written nordic.lua --------
 home_custom="$tmp/home-custom-nordic"
 mkdir -p "$home_custom"
 if HOME="$home_custom" PATH="$fake_bin:/usr/bin:/bin" \
@@ -200,16 +200,18 @@ if HOME="$home_custom" PATH="$fake_bin:/usr/bin:/bin" \
   printf '%s\n' '-- hand-tuned nordic' \
     'return { { "AlexvZyl/nordic.nvim", opts = { bold_keywords = true } } }' \
     > "$custom_spec"
-  if HOME="$home_custom" PATH="$fake_bin:/usr/bin:/bin" \
+  call_log_custom="$tmp/calls-custom"
+  if HOME="$home_custom" FAKE_CALL_LOG="$call_log_custom" \
+    PATH="$fake_bin:/usr/bin:/bin" \
     sh "$script" --with-nordic >"$tmp/output-custom2" 2>&1; then
-    if grep -q 'hand-tuned nordic' "$custom_spec" \
-      && grep -q 'bold_keywords = true' "$custom_spec"; then
-      ok "--with-nordic preserves a user-written nordic.lua"
-    else
-      fail "--with-nordic overwrote a user-written nordic.lua"
-    fi
+    fail "--with-nordic should refuse a conflicting user-written nordic.lua"
+  elif grep -q 'hand-tuned nordic' "$custom_spec" \
+    && grep -q 'bold_keywords = true' "$custom_spec" \
+    && grep -q -- '--with-nordic' "$tmp/output-custom2" \
+    && [ ! -e "$call_log_custom" ]; then
+    ok "--with-nordic refuses a conflicting nordic.lua before syncing, preserving it"
   else
-    fail "--with-nordic with a custom nordic.lua failed: $(cat "$tmp/output-custom2")"
+    fail "--with-nordic mishandled a conflicting user-written nordic.lua"
   fi
 else
   fail "plain install for the custom-nordic scenario failed: $(cat "$tmp/output-custom1")"

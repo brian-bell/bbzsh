@@ -273,16 +273,20 @@ fi
 
 if [ "$replace" -eq 0 ] && [ "$lazyvim_present" -eq 1 ]; then
   # Reuse the existing LazyVim config, adding Nordic in place if requested.
-  # Never clobber a nordic.lua the installer did not write.
+  # Never clobber a nordic.lua the installer did not write; a conflicting one
+  # is a hard error before syncing, since the later Nordic verification cannot
+  # be guaranteed for a spec the installer does not manage.
   if [ "$with_nordic" -eq 1 ] && [ "$nordic_present" -eq 0 ]; then
     if [ -e "$config_dir/lua/plugins/nordic.lua" ] \
       || [ -L "$config_dir/lua/plugins/nordic.lua" ]; then
       printf '%s\n' \
-        'warning: existing lua/plugins/nordic.lua found; leaving it unchanged.' >&2
-    else
-      write_nordic_spec
-      printf 'Added the Nordic colorscheme to the existing LazyVim config.\n'
+        "error: existing lua/plugins/nordic.lua does not match the installer's Nordic spec" >&2
+      printf '%s\n' \
+        'Remove or rename it to let the installer manage Nordic, or re-run without --with-nordic.' >&2
+      exit 1
     fi
+    write_nordic_spec
+    printf 'Added the Nordic colorscheme to the existing LazyVim config.\n'
   fi
 else
   if [ "$replace" -eq 0 ]; then
