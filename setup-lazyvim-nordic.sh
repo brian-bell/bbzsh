@@ -13,25 +13,33 @@ cache_dir="$cache_home/nvim"
 
 usage() {
   cat <<'EOF'
-Usage: setup-lazyvim-nordic.sh [--replace] [--with-iterm]
+Usage: setup-lazyvim-nordic.sh [--with-nordic] [--replace] [--with-iterm]
+       setup-lazyvim-nordic.sh --uninstall
 
-Install the LazyVim starter and configure Nordic as its colorscheme.
+Install the LazyVim starter. Nordic is optional and off by default.
 
 Options:
-  --replace     Back up existing Neovim config, data, state, and cache,
-                then install a fresh configuration.
-  --with-iterm  On macOS, install JetBrains Mono Nerd Font with Homebrew,
-                back up iTerm preferences, and update every iTerm profile.
-  -h, --help    Show this help.
+  --with-nordic  Also install and enable the Nordic colorscheme.
+  --replace      Back up existing Neovim config, data, state, and cache,
+                 then install a fresh configuration.
+  --with-iterm   On macOS, install JetBrains Mono Nerd Font with Homebrew,
+                 back up iTerm preferences, and update every iTerm profile.
+  --uninstall    Back up existing Neovim config, data, state, and cache,
+                 then remove them. Cannot be combined with other options.
+  -h, --help     Show this help.
 EOF
 }
 
 replace=0
 with_iterm=0
+with_nordic=0
+uninstall=0
 for arg do
   case "$arg" in
     --replace) replace=1 ;;
     --with-iterm) with_iterm=1 ;;
+    --with-nordic) with_nordic=1 ;;
+    --uninstall) uninstall=1 ;;
     -h|--help)
       usage
       exit 0
@@ -43,9 +51,62 @@ for arg do
   esac
 done
 
+if [ "$uninstall" -eq 1 ] \
+  && { [ "$replace" -eq 1 ] || [ "$with_iterm" -eq 1 ] || [ "$with_nordic" -eq 1 ]; }; then
+  printf '%s\n' 'error: --uninstall cannot be combined with other options' >&2
+  exit 1
+fi
+
 if [ "$with_iterm" -eq 1 ] && [ "$(uname -s)" != Darwin ]; then
   printf '%s\n' 'error: --with-iterm is supported only on macOS' >&2
   exit 1
+fi
+
+# Move any existing Neovim config, data, state, and cache into a fresh
+# timestamped backup directory. Sets $backup_dir and returns 0 when something
+# was backed up; returns 1 (leaving nothing behind) when no files exist. A
+# failed mkdir or mv aborts the whole script so a partial backup is never
+# reported as complete (set -e is suppressed when this runs in a condition).
+backup_neovim_files() {
+  _has_neovim_files=0
+  for path in "$config_dir" "$data_dir" "$state_dir" "$cache_dir"; do
+    if [ -e "$path" ] || [ -L "$path" ]; then
+      _has_neovim_files=1
+      break
+    fi
+  done
+  [ "$_has_neovim_files" -eq 1 ] || return 1
+
+  backup_dir="$state_home/lazyvim-nordic-installer/backups/$(date +%Y%m%d-%H%M%S)-$$"
+  if ! mkdir -p "$backup_dir"; then
+    printf 'error: failed to create backup directory %s\n' "$backup_dir" >&2
+    exit 1
+  fi
+  for item in \
+    "config:$config_dir" \
+    "data:$data_dir" \
+    "state:$state_dir" \
+    "cache:$cache_dir"
+  do
+    name=${item%%:*}
+    path=${item#*:}
+    if [ -e "$path" ] || [ -L "$path" ]; then
+      if ! mv "$path" "$backup_dir/$name"; then
+        printf 'error: failed to back up %s\n' "$path" >&2
+        exit 1
+      fi
+    fi
+  done
+  return 0
+}
+
+if [ "$uninstall" -eq 1 ]; then
+  if backup_neovim_files; then
+    printf 'Backed up and removed Neovim files. Backup: %s\n' "$backup_dir"
+  else
+    printf '%s\n' 'No Neovim config, data, state, or cache found; nothing to remove.'
+  fi
+  exit 0
 fi
 
 configure_iterm() (
@@ -126,9 +187,11 @@ configure_iterm() (
 
 sync_and_verify_nvim() {
   NVIM_APPNAME=nvim nvim --headless "+Lazy! sync" +qa
-  NVIM_APPNAME=nvim nvim --headless \
-    "+lua assert(vim.g.colors_name == 'nordic', 'Nordic colorscheme failed to load')" \
-    +qa
+  if [ "$with_nordic" -eq 1 ]; then
+    NVIM_APPNAME=nvim nvim --headless \
+      "+lua assert(vim.g.colors_name == 'nordic', 'Nordic colorscheme failed to load')" \
+      +qa
+  fi
 }
 
 if ! command -v nvim >/dev/null 2>&1; then
@@ -175,57 +238,9 @@ if [ "$git_major" -lt 2 ] \
   exit 1
 fi
 
-if [ "$replace" -eq 0 ] \
-  && [ -f "$config_dir/lua/config/lazy.lua" ] \
-  && grep -q 'LazyVim/LazyVim' "$config_dir/lua/config/lazy.lua" \
-  && [ -f "$config_dir/lua/plugins/nordic.lua" ] \
-  && grep -q 'AlexvZyl/nordic.nvim' "$config_dir/lua/plugins/nordic.lua" \
-  && grep -q 'colorscheme = "nordic"' "$config_dir/lua/plugins/nordic.lua"; then
-  :
-else
-  if [ "$replace" -eq 0 ]; then
-    for path in "$config_dir" "$data_dir" "$state_dir" "$cache_dir"; do
-      if [ -e "$path" ] || [ -L "$path" ]; then
-        printf 'error: Neovim files already exist at %s\n' "$path" >&2
-        printf '%s\n' 'Re-run with --replace to back them up and install a fresh config.' >&2
-        exit 1
-      fi
-    done
-  fi
-
-  if [ "$replace" -eq 1 ]; then
-    has_neovim_files=0
-    for path in "$config_dir" "$data_dir" "$state_dir" "$cache_dir"; do
-      if [ -e "$path" ] || [ -L "$path" ]; then
-        has_neovim_files=1
-        break
-      fi
-    done
-
-    if [ "$has_neovim_files" -eq 1 ]; then
-      backup_dir="$state_home/lazyvim-nordic-installer/backups/$(date +%Y%m%d-%H%M%S)-$$"
-      mkdir -p "$backup_dir"
-      for item in \
-        "config:$config_dir" \
-        "data:$data_dir" \
-        "state:$state_dir" \
-        "cache:$cache_dir"
-      do
-        name=${item%%:*}
-        path=${item#*:}
-        if [ -e "$path" ] || [ -L "$path" ]; then
-          mv "$path" "$backup_dir/$name"
-        fi
-      done
-      printf 'Backed up existing Neovim files to %s\n' "$backup_dir"
-    fi
-  fi
-
-  mkdir -p "$config_home"
-  git clone --filter=blob:none https://github.com/LazyVim/starter "$config_dir"
-  rm -rf "$config_dir/.git"
+# Write the Nordic plugin spec into an existing config's plugins directory.
+write_nordic_spec() {
   mkdir -p "$config_dir/lua/plugins"
-
   cat > "$config_dir/lua/plugins/nordic.lua" <<'EOF'
 return {
   {
@@ -241,11 +256,65 @@ return {
   },
 }
 EOF
+}
+
+lazyvim_present=0
+if [ -f "$config_dir/lua/config/lazy.lua" ] \
+  && grep -q 'LazyVim/LazyVim' "$config_dir/lua/config/lazy.lua"; then
+  lazyvim_present=1
+fi
+
+nordic_present=0
+if [ -f "$config_dir/lua/plugins/nordic.lua" ] \
+  && grep -q 'AlexvZyl/nordic.nvim' "$config_dir/lua/plugins/nordic.lua" \
+  && grep -q 'colorscheme = "nordic"' "$config_dir/lua/plugins/nordic.lua"; then
+  nordic_present=1
+fi
+
+if [ "$replace" -eq 0 ] && [ "$lazyvim_present" -eq 1 ]; then
+  # Reuse the existing LazyVim config, adding Nordic in place if requested.
+  # Never clobber a nordic.lua the installer did not write.
+  if [ "$with_nordic" -eq 1 ] && [ "$nordic_present" -eq 0 ]; then
+    if [ -e "$config_dir/lua/plugins/nordic.lua" ] \
+      || [ -L "$config_dir/lua/plugins/nordic.lua" ]; then
+      printf '%s\n' \
+        'warning: existing lua/plugins/nordic.lua found; leaving it unchanged.' >&2
+    else
+      write_nordic_spec
+      printf 'Added the Nordic colorscheme to the existing LazyVim config.\n'
+    fi
+  fi
+else
+  if [ "$replace" -eq 0 ]; then
+    for path in "$config_dir" "$data_dir" "$state_dir" "$cache_dir"; do
+      if [ -e "$path" ] || [ -L "$path" ]; then
+        printf 'error: Neovim files already exist at %s\n' "$path" >&2
+        printf '%s\n' 'Re-run with --replace to back them up and install a fresh config.' >&2
+        exit 1
+      fi
+    done
+  fi
+
+  if [ "$replace" -eq 1 ] && backup_neovim_files; then
+    printf 'Backed up existing Neovim files to %s\n' "$backup_dir"
+  fi
+
+  mkdir -p "$config_home"
+  git clone --filter=blob:none https://github.com/LazyVim/starter "$config_dir"
+  rm -rf "$config_dir/.git"
+
+  if [ "$with_nordic" -eq 1 ]; then
+    write_nordic_spec
+  fi
 
 fi
 
 sync_and_verify_nvim
-printf 'LazyVim with Nordic is ready at %s\n' "$config_dir"
+if [ "$with_nordic" -eq 1 ]; then
+  printf 'LazyVim with Nordic is ready at %s\n' "$config_dir"
+else
+  printf 'LazyVim is ready at %s\n' "$config_dir"
+fi
 printf '%s\n' 'Open Neovim and run :LazyHealth to check external tooling.'
 
 if [ "$with_iterm" -eq 1 ]; then

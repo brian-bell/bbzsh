@@ -31,22 +31,29 @@ source "$HOME/dev/bb.shell/bb.bash"
 Open a new shell, or reload your current one (`source ~/.zshrc` or
 `source ~/.bashrc`).
 
-### LazyVim with Nordic
+### LazyVim (optionally with Nordic)
 
 `setup-lazyvim-nordic.sh` turns a bare Neovim installation into a LazyVim
-setup using the Nordic colorscheme. It requires Neovim 0.11.2 or newer and
-Git 2.19.0 or newer. Run it directly from this checkout:
+setup. It requires Neovim 0.11.2 or newer and Git 2.19.0 or newer. Run it
+directly from this checkout:
 
 ```zsh
 ./setup-lazyvim-nordic.sh
 ```
 
 The installer clones the current LazyVim starter into the standard XDG
-Neovim config directory, adds Nordic, synchronizes plugins, and verifies the
-colorscheme in headless Neovim. Rerunning it preserves the existing config
-while resynchronizing and verifying the setup. After installation, open
-Neovim and run `:LazyHealth` to check external tools such as compilers and
-Tree-sitter components for the languages you use.
+Neovim config directory, synchronizes plugins, and starts headless Neovim.
+Rerunning it preserves the existing config while resynchronizing the setup.
+After installation, open Neovim and run `:LazyHealth` to check external tools
+such as compilers and Tree-sitter components for the languages you use.
+
+The Nordic colorscheme is optional and off by default. To install and enable
+it, add `--with-nordic`; this also verifies the colorscheme loads in headless
+Neovim:
+
+```zsh
+./setup-lazyvim-nordic.sh --with-nordic
+```
 
 An unrelated existing Neovim config is left untouched. To replace one, use:
 
@@ -58,6 +65,14 @@ Before replacement, the installer moves existing Neovim config, data, state,
 and cache directories into a timestamped backup under
 `~/.local/state/lazyvim-nordic-installer/backups/` (or the corresponding
 `XDG_STATE_HOME`).
+
+To remove the setup entirely, use `--uninstall`. It backs up existing Neovim
+config, data, state, and cache into the same timestamped backup location, then
+removes them. It cannot be combined with the install options:
+
+```zsh
+./setup-lazyvim-nordic.sh --uninstall
+```
 
 On macOS, iTerm font setup is an explicit opt-in:
 
@@ -96,9 +111,9 @@ zsh:
 - `install-gitconfig.sh`: installs `.gitconfig` as `~/.gitconfig`, prompting for
   `user.name` / `user.email`. Run with `sh install-gitconfig.sh`; backs up an
   existing `~/.gitconfig` first.
-- `setup-lazyvim-nordic.sh`: installs and verifies LazyVim with Nordic; can
-  optionally back up and replace an existing Neovim setup or configure iTerm
-  with a Nerd Font.
+- `setup-lazyvim-nordic.sh`: installs LazyVim, with Nordic as an opt-in
+  (`--with-nordic`); can back up and replace an existing Neovim setup,
+  configure iTerm with a Nerd Font, or fully uninstall (`--uninstall`).
 
 bash:
 
