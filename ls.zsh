@@ -17,3 +17,4 @@ esac
 alias ll='ls -lh'
 alias la='ls -lah'
 alias l='ls -la'
+alias ..='cd ..'

@@ -92,6 +92,7 @@ each profile's existing font size. Open a new iTerm window afterward. Ghostty
 - Enables menu-style, case-insensitive completion (plus substring matching on
   zsh, which has no native bash equivalent).
 - Enables colorized `ls` output on macOS, BSD, and Linux.
+- Adds `..` as an alias for `cd ..`.
 - Sets a robbyrussell-style prompt with the current path and git branch.
 - Shows a dirty marker in the prompt when the current git worktree has changes.
 - Sources `local.zsh` / `local.bash` for machine-specific overrides if present.
